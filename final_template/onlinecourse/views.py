@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 # <HINT> Import any new Models here
-from .models import Course, Enrollment, Question, Choice
+from .models import Course, Enrollment, Question, Choice, Submission
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -51,7 +51,7 @@ def login_request(request):
         else:
             context['message'] = "Invalid username or password."
             return render(request, 'onlinecourse/user_login_bootstrap.html', context)
-    else:
+    else: 
         return render(request, 'onlinecourse/user_login_bootstrap.html', context)
 
 
@@ -115,13 +115,13 @@ def submit(request, course_id):
     user = request.user
     course = get_object_or_404(Course, pk=course_id)
     enrollment = Enrollment.objects.get(user=user, course=course)
-    
     submission = Submission.objects.create(enrollment=enrollment)
     answers = extract_answers(request)
-    submission.chocies.set(answers)
+    submission.choices.set(answers)
+    #submission.choices.add(*answers)
     submission.save()
 
-    return HttpResponseRedirect(reverse(viewname='onlinecourse:show_exam_result', args=(submission.id,)))
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:show_exam_result', args=(course.id, submission.id)))
 
 # <HINT> A example method to collect the selected choices from the exam form from the request object
 def extract_answers(request):
@@ -142,10 +142,10 @@ def extract_answers(request):
         # Calculate the total score
 #def show_exam_result(request, course_id, submission_id):
 
-def show_exam_result(request, course_id, submission_id):
+'''def show_exam_result(request, course_id, submission_id):
     course = get_object_or_404(Course, pk=course_id)
     submission = get_object_or_404(Submission, pk=submission_id)
-    answers = submission.objects.all()
+    answers = submission.choices.all()
     grade = 0.0
     for answer in answers.choice_set:
         if answer.is_correct:
@@ -155,4 +155,20 @@ def show_exam_result(request, course_id, submission_id):
         'grade': grade
         }
     return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
+'''
+def show_exam_result(request, course_id, submission_id):
+    course = get_object_or_404(Course, pk=course_id)
+    submission = get_object_or_404(Submission, pk=submission_id)
+    choices = submission.choices.all()
+    total_mark, grade = 0, 0
+    for question in course.question_set.all():
+        total_mark += question.grade
+        if question.is_get_score(choices):
+            grade += question.grade
 
+    
+    return render(
+        request,
+        'onlinecourse/exam_result_bootstrap.html',
+       {"course":course, "choices":choices, "grade":int((grade / total_mark) * 100)}
+    )
